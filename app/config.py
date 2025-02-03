@@ -11,6 +11,10 @@ class Settings(BaseSettings):
     LANGSMITH_ENDPOINT: str
     LANGSMITH_API_KEY: str
     LANGSMITH_PROJECT: str
+    PINECONE_API_KEY: str
+    ASTRA_DB_KEYSPACE: str
+    ASTRA_DB_API_ENDPOINT: str
+    ASTRA_DB_APPLICATION_TOKEN: str
 
     model_config = {
         "env_file": ".env",
