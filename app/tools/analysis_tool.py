@@ -57,13 +57,9 @@ class AnalysisTool(BaseTool):
     def _run(self, email_id: str):
         try:
             metadata = self.storage_manager.metadata_store.get_metadata(email_id)
-            first_chunk = self.storage_manager.get_email_chunks(email_id)
-            meta_data = json.dumps({
-                "metadata": metadata.to_dict(),
-                "preview": first_chunk[0][0].page_content if first_chunk else None
-            })
-            retrieved_docs = self.retriever.invoke(meta_data)
-            context_texts = [doc.page_content for doc in retrieved_docs]
+            chunks = self.storage_manager.get_email_chunks(email_id, metadata.num_chunks)
+            meta_data = json.dumps(metadata.to_dict())
+            context_texts = [doc[0].page_content for doc in chunks]
             analysis_result = self.qa_chain.invoke({"knowledge_base_context": context_texts, "metadata": meta_data})
             return {
                 "analysis_result": analysis_result[0] if isinstance(analysis_result, list) else analysis_result,

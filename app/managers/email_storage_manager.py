@@ -79,13 +79,13 @@ class EmailStorageManager:
 
         return metadata
 
-    def get_email_chunks(self, email_id: str):
+    def get_email_chunks(self, email_id: str, k: int = 5):
         """Retrieve all chunks for a specific email"""
         try:
             results = self.vector_store.similarity_search_with_score(
                 query="",
                 filter={"email_id": email_id},
-                k=100
+                k=k
             )
             # Sort by chunk_index
             sorted_results = sorted(

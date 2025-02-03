@@ -3,6 +3,7 @@ from typing import Any, List
 
 from langchain import hub
 from langchain_core.tools import BaseTool
+from langchain_core.vectorstores import VectorStoreRetriever
 from langchain_pinecone import PineconeVectorStore
 from langgraph.checkpoint.memory import MemorySaver
 from pydantic import Field
@@ -13,7 +14,7 @@ from app.tools.analysis_tool import AnalysisResult
 class SynthesisTool(BaseTool):
     llm: Any = Field(default=None)
     llm_chain: Any = Field(default=None)
-    retriever: Any = Field(default=None)
+    retriever: VectorStoreRetriever = Field(default=None)
     memory: MemorySaver = Field(default=None)
 
     def __init__(self, llm, vector_store: PineconeVectorStore, memory: MemorySaver):
@@ -53,16 +54,17 @@ class SynthesisTool(BaseTool):
     async def _arun(self, query: str) -> str:
         raise NotImplementedError("This tool only supports async.")
 
-    def _retrieve_knowledge_base_context(self, analysis_results: List[AnalysisResult], top_k: int = 5):
+    def _retrieve_knowledge_base_context(self, analysis_results: List[AnalysisResult]):
         context_documents = []
         for analysis_result in analysis_results:
-            for headline in analysis_result.headline_insights:
-               theme = headline.theme
-               topics = headline.key_points
+            for headline in analysis_result["headline_insights"]:
+               theme = headline["theme"]
+               topics = headline["key_points"]
 
-               query = f"{theme}\n{topics}"
+               topics_str = " ".join(topics)
+               query = f"{theme}\n{topics_str}"
 
-               context_documents.extend(self.knowledge_base.similarity_search(query, k=top_k))
+               context_documents.extend(self.retriever.invoke(query))
 
         context = "\n".join([doc.page_content for doc in context_documents])
         return context
