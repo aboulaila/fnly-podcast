@@ -4,13 +4,13 @@ from langchain_core.documents import Document
 from langchain_core.tools import BaseTool
 from pydantic import Field
 
-from app.managers.email_storage_manager import EmailStorageManager
+from app.services.email_vector_store import EmailVectorStore
 
 
 class GetEmailContentTool(BaseTool):
-    storage_manager: EmailStorageManager = Field(default=None)
+    storage_manager: EmailVectorStore = Field(default=None)
 
-    def __init__(self, storage_manager: EmailStorageManager):
+    def __init__(self, storage_manager: EmailVectorStore):
         super().__init__(
             name="GetEmailContentTool",
             description="Retrieves relevant content using metadata or semantic search"

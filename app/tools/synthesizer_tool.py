@@ -8,6 +8,7 @@ from langchain_pinecone import PineconeVectorStore
 from langgraph.checkpoint.memory import MemorySaver
 from pydantic import Field
 
+from app.services.email_analysis_store import EmailAnalysisStore
 from app.tools.analysis_tool import AnalysisResult
 
 
@@ -16,8 +17,9 @@ class SynthesisTool(BaseTool):
     llm_chain: Any = Field(default=None)
     retriever: VectorStoreRetriever = Field(default=None)
     memory: MemorySaver = Field(default=None)
+    email_analysis_store: EmailAnalysisStore = Field(default=None)
 
-    def __init__(self, llm, vector_store: PineconeVectorStore, memory: MemorySaver):
+    def __init__(self, llm, vector_store: PineconeVectorStore, memory: MemorySaver, email_analysis_store: EmailAnalysisStore):
         super().__init__(name="SynthesisTool", description=(
             "Aggregate and organize insights from various analyses into a unified summary."
             "Highlight the most significant findings and actionable items."
@@ -30,15 +32,19 @@ class SynthesisTool(BaseTool):
             search_kwargs={"k": 5}
         )
         self.memory = memory
+        self.email_analysis_store = email_analysis_store
 
     def _initialize_llm_chain(self):
         prompt = hub.pull("sythesizer_tool")
 
         return prompt | self.llm
 
-    def _run(self, analysis_results: List[AnalysisResult]):
+    def _run(self, analysis_ids: List[str]):
+        """takes a list of analysis ids and runs the analysis"""
         try:
-            analysis_results_json = json.dumps([json.dumps(result) for result in analysis_results])
+            analysis_results = self.email_analysis_store.get_analysis_by_ids(analysis_ids)
+
+            analysis_results_json = json.dumps([result.model_dump() for result in analysis_results])
             context = self._retrieve_knowledge_base_context(analysis_results)
 
             summary = self.llm_chain.invoke(
@@ -57,9 +63,9 @@ class SynthesisTool(BaseTool):
     def _retrieve_knowledge_base_context(self, analysis_results: List[AnalysisResult]):
         context_documents = []
         for analysis_result in analysis_results:
-            for headline in analysis_result["headline_insights"]:
-               theme = headline["theme"]
-               topics = headline["key_points"]
+            for headline in analysis_result.headline_insights:
+               theme = headline.theme
+               topics = headline.key_points
 
                topics_str = " ".join(topics)
                query = f"{theme}\n{topics_str}"

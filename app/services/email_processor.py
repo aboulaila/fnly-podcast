@@ -5,11 +5,13 @@ from typing import Dict, Optional, List
 from bs4 import BeautifulSoup
 
 from app.models.email_content import EmailContent
+from app.services.url_shortener import UrlShortener
 
 
-class EmailProcessingManager:
+class EmailProcessor:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
+        self.url_shortener = UrlShortener()
     
     def process_email(self, email: Dict) -> Optional[EmailContent]:
         """Process a single email into structured content"""
@@ -19,6 +21,8 @@ class EmailProcessingManager:
 
             raw_body = email.get('body', {}).get('content', '')
             processed_text, links = self._extract_content(raw_body)
+
+            cleaned_urls = self.url_shortener.process_urls(links)
             received_date = self._parse_received_date(email.get('receivedDateTime', ''))
 
             email = EmailContent(
@@ -26,7 +30,7 @@ class EmailProcessingManager:
                 sender=email.get('sender', {}).get('emailAddress', {}).get('address', ''),
                 received_date=received_date,
                 processed_text=processed_text,
-                links=links,
+                links=cleaned_urls,
                 metadata={
                     'preview': email.get('bodyPreview', ''),
                     'processed_at': datetime.now()

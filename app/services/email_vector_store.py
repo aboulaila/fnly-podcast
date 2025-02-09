@@ -2,36 +2,25 @@ import logging
 import uuid
 from typing import List
 
-from langchain.chains.summarize import load_summarize_chain
 from langchain_core.documents import Document
-from langchain_core.prompts import PromptTemplate
 from langchain_pinecone import PineconeVectorStore
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from app.managers.email_metadata_store import EmailMetadataStore
+from app.ai_services.email_summarizer import EmailSummarizer
 from app.models.email_content import EmailContent
 from app.models.email_metadata import EmailMetadata
+from app.services.email_metadata_store import EmailMetadataStore
 
 
-class EmailStorageManager:
-    def __init__(self, llm, vector_store: PineconeVectorStore, metadata_store: EmailMetadataStore):
+class EmailVectorStore:
+    def __init__(self, vector_store: PineconeVectorStore, metadata_store: EmailMetadataStore):
         self.vector_store = vector_store
         self.metadata_store = metadata_store
         self.chunk_size = 512
         self.chunk_overlap = 50
         self.max_tokens = 100
 
-        summarize_prompt = PromptTemplate(
-            template="""extract newsletters headlines from the below email body
-                    {text}""",
-            input_variables=["text"]
-        )
-
-        self.summary_chain = load_summarize_chain(
-            llm=llm,
-            chain_type="stuff",
-            prompt=summarize_prompt
-        )
+        self.summarizer = EmailSummarizer()
 
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.chunk_size,
@@ -45,18 +34,12 @@ class EmailStorageManager:
         """Process and store email content with proper metadata handling"""
         email_id = str(uuid.uuid4())
 
-        try:
-            headlines = self._extract_headlines(email_content.processed_text)
-        except Exception as e:
-            self.logger.error(f"Error generating headlines: {e}")
-            headlines = email_content.processed_text[:500] + "..."
-
         metadata = EmailMetadata(
             email_id=email_id,
             subject=email_content.subject,
             sender=email_content.sender,
             timestamp=email_content.received_date,
-            headlines=headlines,
+            headlines="",
             content=email_content.processed_text,
             links=email_content.links,
             num_chunks=0,
@@ -97,16 +80,6 @@ class EmailStorageManager:
             print(f"Error retrieving email chunks: {str(e)}")
             return []
 
-    def _extract_headlines(self, text: str) -> str:
-        """Generate a concise summary using LangChain summarization chain."""
-        try:
-            doc = Document(page_content=text)
-            result = self.summary_chain.invoke({"input_documents": [doc]})
-            return result.get("output_text", "")
-        except Exception as e:
-            self.logger.error(f"Error generating summary: {str(e)}")
-            return text[:500] + "..."
-
     def _create_chunks(self, text: str) -> List[str]:
         """Split text into chunks using LangChain's text splitter."""
         try:
@@ -125,7 +98,7 @@ class EmailStorageManager:
                 chunk_metadata = {
                     "chunk_index": i,
                     "total_chunks": len(chunks),
-                    **email_metadata.to_dict()
+                    **{key: value for key, value in email_metadata.to_dict().items() if key != "links"}
                 }
 
                 doc = Document(

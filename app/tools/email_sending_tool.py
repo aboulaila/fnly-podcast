@@ -3,7 +3,7 @@ from langchain_core.tools import BaseTool
 from pydantic import Field
 
 from app.config import Settings
-from app.helpers.email_auth import Office365Authenticator
+from app.services.email_auth import Office365Authenticator
 
 
 class EmailSendingTool(BaseTool):

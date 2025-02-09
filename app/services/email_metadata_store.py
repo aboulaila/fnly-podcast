@@ -118,39 +118,3 @@ class EmailMetadataStore:
             self.session.rollback()
             print(f"Error updating metadata: {str(e)}")
             raise
-
-    def list_emails(self,
-                    filter_dict: dict = None,
-                    limit: int = 100,
-                    offset: int = 0) -> List[EmailMetadata]:
-        """List all email metadata matching the filter"""
-        try:
-            stmt = select(EmailMetadataModel)
-
-            if filter_dict:
-                conditions = []
-                for key, value in filter_dict.items():
-                    if hasattr(EmailMetadataModel, key):
-                        column = getattr(EmailMetadataModel, key)
-                        if isinstance(value, str):
-                            conditions.append(column.ilike(f"%{value}%"))
-                        elif value is None:
-                            conditions.append(column.is_(None))
-                        else:
-                            conditions.append(column == value)
-
-                if conditions:
-                    stmt = stmt.where(*conditions)
-
-            stmt = stmt.limit(limit).offset(offset)
-            result = self.session.execute(stmt)
-
-            return [
-                EmailMetadata(**row.additional_metadata)
-                for row in result.scalars()
-                if row.additional_metadata
-            ]
-
-        except Exception as e:
-            print(f"Error listing emails: {str(e)}")
-            return []

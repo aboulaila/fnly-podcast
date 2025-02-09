@@ -1,46 +1,36 @@
 import json
-from typing import Any, List
+from typing import Any
 
 from langchain_core.output_parsers import PydanticToolsParser
 from langchain_core.prompts import PromptTemplate
 from langchain_core.tools import BaseTool
 from langchain_core.vectorstores import VectorStoreRetriever
 from langchain_pinecone import PineconeVectorStore
-from pydantic import Field, BaseModel
+from pydantic import Field
 
-from app.managers.email_storage_manager import EmailStorageManager
+from app.models.analysis_result import AnalysisResult
+from app.services.email_analysis_store import EmailAnalysisStore
+from app.services.email_vector_store import EmailVectorStore
 
-
-class HeadlineAnalysis(BaseModel):
-    """singled headline analysis model."""
-    theme: str = Field(description="Theme or topic of the headline")
-    key_points: List[str] = Field(description="Key insights and implications of each topic.")
-    summary: List[str] = Field(description="Summary of the provided topic")
-    relevant_links: List[str] = Field(description="Links or references relevant to the analysis.")
-    priority_level: float = Field(
-        description="Priority level of the headline. Higher values indicate higher priority.")
-
-class AnalysisResult(BaseModel):
-    """Structured analysis result model."""
-    headline_insights: List[HeadlineAnalysis] = Field(description="Key insights and implications of each headline.")
 
 class AnalysisTool(BaseTool):
     llm: Any = Field(default=None)
     qa_chain: Any = Field(default=None)
     retriever: VectorStoreRetriever = Field(default=None)
-    storage_manager: EmailStorageManager = Field(default=None)
+    storage_manager: EmailVectorStore = Field(default=None)
+    email_analysis_store: EmailAnalysisStore = Field(default=None)
 
-    def __init__(self, llm, vector_store: PineconeVectorStore, storage_manager: EmailStorageManager):
+    def __init__(self, llm, vector_store: PineconeVectorStore, storage_manager: EmailVectorStore, email_analysis_store: EmailAnalysisStore):
         super().__init__(name="AnalysisTool", description=(
-            "Perform sentiment analysis to gauge the emotional tone of the content"
             "Identify and categorize key topics and themes discussed in the newsletters."
-            "Extract entities such as names, organizations, and locations mentioned. Summarize complex information to highlight essential points."
+            "Summarize complex information to highlight essential points."
         ))
         self.retriever = vector_store.as_retriever(
             search_type="similarity",
             search_kwargs={"k": 5}
         )
         self.storage_manager = storage_manager
+        self.email_analysis_store = email_analysis_store
         self.llm = llm
         self.qa_chain = self._initialize_qa_chain()
 
@@ -61,8 +51,10 @@ class AnalysisTool(BaseTool):
             meta_data = json.dumps(metadata.to_dict())
             context_texts = [doc[0].page_content for doc in chunks]
             analysis_result = self.qa_chain.invoke({"knowledge_base_context": context_texts, "metadata": meta_data})
+
+            result = self.email_analysis_store.store_analysis(analysis_result[0])
             return {
-                "analysis_result": analysis_result[0] if isinstance(analysis_result, list) else analysis_result,
+                "analysis_id": result.analysis_id,
             }
         except Exception as e:
             return {
