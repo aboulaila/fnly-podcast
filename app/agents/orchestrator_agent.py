@@ -47,12 +47,12 @@ class OrchestratorAgent:
             EmailSendingTool(config=settings)
         ]
 
-    def run(self):
-        query = (
-            "Everyday I receive emails from: news@alphasignal.ai, info@youreverydayai.com, dan@tldrnewsletter.com, noreply@medium.com"
-            "Which are domain specific newsletters, but I don't have the time to read all of them and sometimes they are irrelevant"
-            "As a helpful assistant, I want you to get the last emails received 2 days back, and analyze each one of them"
-            f"then create a summary and send it to me on the following address {settings.RECEIVER_EMAIL}"
-        )
-        result = self.agent.run(query)
+    def run(self, user_input: str):
+        """
+        Process user input as a chat interaction and execute appropriate actions.
+        
+        Args:
+            user_input: The message/query from the user
+        """
+        result = self.agent.run(user_input)
         return result
